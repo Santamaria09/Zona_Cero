@@ -19,8 +19,12 @@ class ProductoController extends Controller
     public function index()
     {
         try {
-            $productos = Producto::with(['marca', 'categoria', 'imagenes'])
-                ->orderBy('id', 'desc')
+            $productos = Producto::with(['marca', 'categoria', 'imagenes']);
+
+            if($request->buscar){
+            $query->where('nombre','like','%'.$request->buscar.'%');
+            }
+               $productos = $query -> orderBy('id', 'desc')
                 ->get();
 
             return response()->json($productos, 200);
@@ -93,7 +97,7 @@ class ProductoController extends Controller
                 
                 foreach ($request->file('imagenes') as $file) {
                     
-                    $nombreImagen = time().'_'.$file->getClientOriginalName();
+                    $nombreImagen = uniqid().'_'.$file->getClientOriginalName();
                     $rutaDestino = public_path('images/productos');
                     // si no existe la carpeta la creamos
                     if (! file_exists($rutaDestino)) {
@@ -212,10 +216,10 @@ class ProductoController extends Controller
                     if (file_exists($ruta)) {
                         unlink($ruta); // borramos el archivo físico
                     }
-                    // borramos el registro de imagenes
+                    
                     $img->delete();
                 }
-                // guardamos las nuevas imágenes
+                
                 foreach ($request->file('imagenes') as $file) {
                     // cambiamos el nombre de la imagen
                     $nombreImagen = time().'_'.$file->getClientOriginalName();
