@@ -3,23 +3,39 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Producto;
 
-class MarcaController extends Controller
+class OrderController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        try {
-        $categoria = Categoria::all(); 
-        return response()->json($categoria);
-        
-        } catch(\Exception $e) {
+        try{
+            $query = Order::with(['user', 'items.producto', 'pagos']);
+            //filtramos
+            if($request->estado){
+                $query->where('estado', $request->estado);
+            }
+            //ordenes generadas anteriormente
+            if($request->user_id){
+                $query->where('user_id', $request->user_id);
+            }
+
+            //definir la orden a mostrar
+
+            $order = $query->orderBy('fecha', 'desc')->get();
+            return response()->json($order);
+        } catch(\Exception $e){
             return response()->json([
-                'message' => 'Error al obtener las categorias',
+                'message' => 'Error al obtener la lista de ordenes',
                 'error' => $e->getMessage()
-            ], 500); 
+            ],500);
         }
     }
 
@@ -29,28 +45,58 @@ class MarcaController extends Controller
     public function store(Request $request)
     {
         try {
-             $request->validate([
-            'nombre' => 'required|string|min:2|max:60|unique:categorias,nombre',
-        ], [
-            'nombre.required' => 'El nombre de la categoría es obligatorio',
-            'nombre.string'   => 'El nombre de la categoría debe ser una cadena de texto',
-            'nombre.min'      => 'El nombre de la categoría debe tener al menos 2 caracteres',
-            'nombre.max'      => 'El nombre de la categoría no debe exceder los 60 caracteres',
-            'nombre.unique'  => 'El nombre de la categoría ya existe'
+        //validacion
+        $data = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'fecha' => 'required|date',
+            'subtotal' => 'required|numeric|min:0',
+            'impuesto' => 'required|numeric|min:0',
+            'total' => 'required|numeric|min:0',
+            'items' => 'required|array|min:1',
+            'items.*.producto_id' => 'required|exists:productos,id',
+            'items.*.cantidad' => 'required|integer|min:1',
+            
         ]);
 
-        $categoria = Categoria::create($validated);
-        return response()->json([
-            'message' => 'Categoría registrada correctamente',
-            'categoria' => $categoria
-        ], 201);
-
-        } catch(\Exception $e) {
-            return response()->json([
-                'message' => 'Error, no se pudo registrar la categoría',
-                'error' => $e->getMessage()
-            ], 500); 
+        // iniciar transaccion
+        DB::beginTransaction();
+        //crear la orden
+        $order = Order::create([
+            'correlativo' => $this->generateCorrelativo(),
+            'fecha' => $data['fecha'],
+            'subtotal' => $data['subtotal'],
+            'impuesto' => $data['impuesto'],
+            'total' => $data['total'],
+            'estado' => 'PENDIENTE',
+            'user_id' => $data['user_id']
+        ]);
+        //RECORREMOS LA COLECCION DE ITEMS PARA AGREGAR EN ORDER_ITEMS
+        foreach($data['items'] as $item){
+            //OBTENEMOS EL PRODUCTO DE LA TABLA
+            $producto = Producto::findOrFail($item['producto_id']);
+            $subt = $producto->precio * $item['cantidad'];
+            //CREAMOS EL ITEM DE LA ORDEN
+            OrderItem::create([
+                'cantidad' => $item['cantidad'],
+                'precio_unitario' => $producto->precio,
+                'subtotal' => $subt,
+                'producto_id' => $item['producto_id'],
+                'order_id' => $order->id
+            ]);
         }
+        } catch(\Exception $e){
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error al crear la orden',
+                'error'=> $e->getMessage()
+            ],500);
+        }
+
+        DB::commit();
+        return response()->json([
+            'message' => 'Orden creada exitosamente',
+            'order' => $order->load('items.producto')
+        ],200);
     }
 
     /**
@@ -58,14 +104,13 @@ class MarcaController extends Controller
      */
     public function show(string $id)
     {
-        try {
-            $categoria =Categoria::findOrFail($id);
-            return response()->json($categoria);
-        } catch(\Exception $e) {
+         try{
+            $order = Order::with(['user','items.producto','pagos'])->findOrFail($id);
+            return response()->json($producto);
+        }catch(ModelNotFoundException $e){
             return response()->json([
-                'message' => 'Error, no se encontró la categoría',
-                'error' => $e->getMessage()
-            ], 404);
+                'message' => 'No se ha encontrado la order con ID = ' . $id
+            ],404);
         }
     }
 
@@ -74,60 +119,73 @@ class MarcaController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        try{
-            $categoria = Categoria::findOrFail($id);
-            $request->validate(
-                [
-                    'nombre'=> ['required', 'string', 'min:2', 'max:60', 
-                    Rule::unique('categorias', 'nombre')->ignore($id)
-                    ]
-                ],
-                [
-                    'nombre.unique'=> 'El nombre de la categoría ya existe'
-                ]
-            );
-            $categoria->update([
-                'nombre'=>$request->nombre
-            ]);
-            return response()->json([
-                'message' => 'Categoria actualizada correctamente',
-                'categoria'=>$categoria
-            ],201);
-        } catch(\Exception $e) {
-            return response()->json([
-                'message' => 'Error al actualizar la categoría',
-                'error' => $e->getMessage()
-            ], 500); 
-        }
+        //
     }
 
     /**
      * Remove the specified resource from storage.
      */
     public function destroy(string $id)
-    { 
+    {
+        //
+    }
+
+    public function gestionarEstado(Request $request, $id){
         try{
-            $categoria = Categoria::with('productos')->findOrFail($id);
+            //obtener la orden DB 
+            $order = Order::findOrFail($id);
 
-            if ($categoria->productos->exists())
-            {
-                return response()->json([
-                    'message' => 'No te puede eliminar esta categoria porque tiene productos asociados'
-                ],409);
-            }
-
-            $categoria->delete();
-            return response()->json([
-                'message' => 'Categoria eliminada correctamente'
-            ],200);
+            //validacion del estado
+            $data = $request->validate([
+                'estado' => 'required|in:PENDIENTE,PAGADA,CANCELADA,REEMBOLSADA,ENTREGADA'
+            ]);
             
-        }catch(ModelNotFoundException $e) {
-            return response()->json([
-                'message' => 'Error, no se encontró la categoría con ID: ' . $id
-            ], 404);
+            //obtencion del nuevo estado de la orden
+            $nuevoEstado = $data['estado'];
+            
+            $estadoActual = $order->estado;
 
+            $transicionesValidas = [
+                'PENDIENTE' => ['PAGADA', 'CANCELADA'],
+                'PAGADA' => ['ENTREGADA', 'REEMBOLSADA'],
+                'ENTREGADA' => ['REEMBOLSADA'],
+                'CANCELADA' => [],
+                'REEMBOLSADA' => []
+                                
+            ];
+                //validacion 
+            if(!in_array($nuevoEstado, $transicionesValidas[$estadoActual])){
+                return response()->json([
+                    'message' => "No se puede cambiar de $estadoActual a $nuevoEstado"
+                ],400);
+            }
+        //actualizacion del estado de la orden
+            $order->estado = $nuevoEstado;
+            if($nuevoEstado === 'ENTREGADA'){
+                $order->fecha_despacho = now();
+            }
+            $order->update();
+            return response()->json([
+                'message' => "La orden $order->correlativo ha sido actualizada a estado $nuevoEstado",
+                'order' => $order->load('items.producto')
+            ]);
+
+        }catch(\Exception $e){
+            return response()->json([
+                'message' => 'Error al actualizar el estado de la orden',
+                'error' => $e->getMessage()
+            ],500);
         }
     }
+
+    private function generateCorrelativo(){
+        $year = now()->format('Y');
+        $month = now()->format('m');
+        $ultimo = Order::whereYear('fecha', $year)
+                        ->whereMonth('fecha', $month)
+                        ->lockForUpdate()
+                        ->count();
+                        $numero = str_pad($ultimo +1 ,4,'0', STR_PAD_LEFT);
+                        return $year . $month . $numero;    
+    }
 }
-
-
