@@ -3,37 +3,32 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use App\Models\Marca;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\Producto;
 
-class OrderController extends Controller
+class MarcaController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+     public function index()
     {
         try{
-            $query = Order::with(['user', 'items.producto', 'pagos']);
-            //filtramos
-            if($request->estado){
-                $query->where('estado', $request->estado);
-            }
-            //ordenes generadas anteriormente
-            if($request->user_id){
-                $query->where('user_id', $request->user_id);
-            }
+            // Forma básica
+            // $marcas = Marca::all();
 
-            //definir la orden a mostrar
+            // Ordenadas
+            $marcas = Marca::orderBy('id','desc')->get();
 
-            $order = $query->orderBy('fecha', 'desc')->get();
-            return response()->json($order);
-        } catch(\Exception $e){
+            // Paginadas
+            // $marcas = Marca::orderBy('id','desc')->paginate(10);
+
+            return response()->json($marcas);
+        }catch(\Exception $e){
             return response()->json([
-                'message' => 'Error al obtener la lista de ordenes',
+                'message' => 'Error al obtener las marcas',
                 'error' => $e->getMessage()
             ],500);
         }
@@ -42,75 +37,58 @@ class OrderController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+   public function store(Request $request)
     {
-        try {
-        //validacion
-        $data = $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'fecha' => 'required|date',
-            'subtotal' => 'required|numeric|min:0',
-            'impuesto' => 'required|numeric|min:0',
-            'total' => 'required|numeric|min:0',
-            'items' => 'required|array|min:1',
-            'items.*.producto_id' => 'required|exists:productos,id',
-            'items.*.cantidad' => 'required|integer|min:1',
-            
-        ]);
+        try{
+            //validaciones a nivel de Request
+            $request->validate(
+                [
+                    'nombre' => 'required|string|min:2|max:80|unique:marcas,nombre'
+                ],
+                [
+                    'nombre.unique' => 'Ya existe una marca con este nombre en la base de datos'
+                ]
+            );
 
-        // iniciar transaccion
-        DB::beginTransaction();
-        //crear la orden
-        $order = Order::create([
-            'correlativo' => $this->generateCorrelativo(),
-            'fecha' => $data['fecha'],
-            'subtotal' => $data['subtotal'],
-            'impuesto' => $data['impuesto'],
-            'total' => $data['total'],
-            'estado' => 'PENDIENTE',
-            'user_id' => $data['user_id']
-        ]);
-        //RECORREMOS LA COLECCION DE ITEMS PARA AGREGAR EN ORDER_ITEMS
-        foreach($data['items'] as $item){
-            //OBTENEMOS EL PRODUCTO DE LA TABLA
-            $producto = Producto::findOrFail($item['producto_id']);
-            $subt = $producto->precio * $item['cantidad'];
-            //CREAMOS EL ITEM DE LA ORDEN
-            OrderItem::create([
-                'cantidad' => $item['cantidad'],
-                'precio_unitario' => $producto->precio,
-                'subtotal' => $subt,
-                'producto_id' => $item['producto_id'],
-                'order_id' => $order->id
+            $marca = Marca::create([
+                'nombre' => $request->nombre
             ]);
-        }
-        } catch(\Exception $e){
-            DB::rollBack();
             return response()->json([
-                'message' => 'Error al crear la orden',
-                'error'=> $e->getMessage()
+                'message' => 'Marca registrada correctamente',
+                'marca' =>  $marca
+            ],201);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Error de validación.',
+                'errores' => $e->errors()
+            ], 422);
+
+        } catch(\Exception $e){
+              return response()->json([
+                'message' => 'Error interno del servidor',
+                'error' => $e->getMessage()
             ],500);
         }
-
-        DB::commit();
-        return response()->json([
-            'message' => 'Orden creada exitosamente',
-            'order' => $order->load('items.producto')
-        ],200);
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+   public function show(string $id)
     {
-         try{
-            $order = Order::with(['user','items.producto','pagos'])->findOrFail($id);
-            return response()->json($producto);
-        }catch(ModelNotFoundException $e){
+        try{
+            $marca = Marca::findOrFail($id);
+            return response()->json($marca);
+        }catch (ModelNotFoundException $e) {
             return response()->json([
-                'message' => 'No se ha encontrado la order con ID = ' . $id
-            ],404);
+                'message' => 'Marca no encontrada, con ID = ' . $id
+            ], 404);
+        }
+        catch(\Exception $e){
+            return response()->json([
+                'message' => 'Marca no encontrada',
+                'error' => $e->getMessage()
+            ],500);
         }
     }
 
@@ -119,7 +97,39 @@ class OrderController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        try{
+             //primero obtenemos el registro de la bd
+            $marca = Marca::findOrFail($id);
+            //aplicamos validaciones a nivel de request
+            $request->validate(
+                [
+                    'nombre' => [
+                        'required',
+                        'string',
+                        'min:2',
+                        'max:80',
+                        Rule::unique('marcas', 'nombre')->ignore($id)
+                    ]
+                ],
+                [
+                    'nombre.unique' => 'Ya existe una marca con este nombre en la base de datos'
+                ]
+            );
+
+            //mandamos a actualizar el registro
+            $marca->update([
+                'nombre' =>$request->nombre
+            ]);
+            return response()->json([
+                'message' => 'Marca actualizada correctamente',
+                'marca' => $marca
+            ],202);
+        }catch(\Exception $e){
+             return response()->json([
+                'message' => 'Marca no encontrada',
+                'error' => $e->getMessage()
+            ],500);
+        }
     }
 
     /**
@@ -127,65 +137,25 @@ class OrderController extends Controller
      */
     public function destroy(string $id)
     {
-        //
-    }
+         try {
+            $marca = Marca::with('productos')->findOrFail($id);
 
-    public function gestionarEstado(Request $request, $id){
-        try{
-            //obtener la orden DB 
-            $order = Order::findOrFail($id);
-
-            //validacion del estado
-            $data = $request->validate([
-                'estado' => 'required|in:PENDIENTE,PAGADA,CANCELADA,REEMBOLSADA,ENTREGADA'
-            ]);
-            
-            //obtencion del nuevo estado de la orden
-            $nuevoEstado = $data['estado'];
-            
-            $estadoActual = $order->estado;
-
-            $transicionesValidas = [
-                'PENDIENTE' => ['PAGADA', 'CANCELADA'],
-                'PAGADA' => ['ENTREGADA', 'REEMBOLSADA'],
-                'ENTREGADA' => ['REEMBOLSADA'],
-                'CANCELADA' => [],
-                'REEMBOLSADA' => []
-                                
-            ];
-                //validacion 
-            if(!in_array($nuevoEstado, $transicionesValidas[$estadoActual])){
+            if ($marca->productos()->exists()) {
                 return response()->json([
-                    'message' => "No se puede cambiar de $estadoActual a $nuevoEstado"
-                ],400);
+                    'message' => 'No se puede eliminar la marca porque tiene productos asociados.'
+                ], 409);
             }
-        //actualizacion del estado de la orden
-            $order->estado = $nuevoEstado;
-            if($nuevoEstado === 'ENTREGADA'){
-                $order->fecha_despacho = now();
-            }
-            $order->update();
-            return response()->json([
-                'message' => "La orden $order->correlativo ha sido actualizada a estado $nuevoEstado",
-                'order' => $order->load('items.producto')
-            ]);
 
-        }catch(\Exception $e){
+            $marca->delete();
+
             return response()->json([
-                'message' => 'Error al actualizar el estado de la orden',
-                'error' => $e->getMessage()
-            ],500);
+                'message' => 'Marca eliminada correctamente.'
+            ], 200);
+
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Marca no encontrada, con el ID = ' .$id
+            ], 404);
         }
-    }
-
-    private function generateCorrelativo(){
-        $year = now()->format('Y');
-        $month = now()->format('m');
-        $ultimo = Order::whereYear('fecha', $year)
-                        ->whereMonth('fecha', $month)
-                        ->lockForUpdate()
-                        ->count();
-                        $numero = str_pad($ultimo +1 ,4,'0', STR_PAD_LEFT);
-                        return $year . $month . $numero;    
     }
 }

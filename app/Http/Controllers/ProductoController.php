@@ -16,25 +16,26 @@ class ProductoController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
-    {
-        try {
-            $productos = Producto::with(['marca', 'categoria', 'imagenes']);
+public function index(Request $request)
+{
+    try {
+        $query = Producto::with(['marca', 'categoria', 'imagenes']);
 
-            if($request->buscar){
-            $query->where('nombre','like','%'.$request->buscar.'%');
-            }
-               $productos = $query -> orderBy('id', 'desc')
-                ->get();
-
-            return response()->json($productos, 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error al obtener la lista de productos.',
-            ], 500);
+        if ($request->buscar) {
+            $query->where('nombre', 'like', '%' . $request->buscar . '%');
         }
+
+        $productos = $query->orderBy('id', 'desc')->get();
+
+        return response()->json($productos, 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Error al obtener la lista de productos.',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     /**
      * Store a newly created resource in storage.
@@ -68,7 +69,7 @@ class ProductoController extends Controller
                 'activo' => $productoData['activo'] ?? null,
             ];
 
-            
+
             $validator = Validator::make($data, [
                 'nombre' => 'required|string|max:80|unique:productos,nombre',
                 'descripcion' => 'required|string|max:200',
@@ -87,16 +88,16 @@ class ProductoController extends Controller
                 ], 422);
             }
 
-            
+
             DB::beginTransaction();
 
-           
+
             $producto = Producto::create($data);
-            
+
             if ($request->hasFile('imagenes')) {
-                
+
                 foreach ($request->file('imagenes') as $file) {
-                    
+
                     $nombreImagen = uniqid().'_'.$file->getClientOriginalName();
                     $rutaDestino = public_path('images/productos');
                     // si no existe la carpeta la creamos
@@ -105,14 +106,14 @@ class ProductoController extends Controller
                     }
                     // copiamos el archivo a la ruta destino
                     $file->move($rutaDestino, $nombreImagen);
-                   
+
                     Imagen::create([
                         'nombre' => $nombreImagen,
                         'producto_id' => $producto->id,
                     ]);
                 }
             }
-            
+
             DB::commit();
             // obtenemos el objeto guardado completo
             $producto->load(['marca', 'categoria', 'imagenes']);
@@ -159,24 +160,24 @@ class ProductoController extends Controller
     public function update(Request $request, string $id)
     {
         try {
-           
+
             $producto = Producto::with('imagenes')->findOrFail($id);
-            
+
             if (! $request->has('producto')) {
                 return response()->json([
                     'message' => 'El objeto producto es requerido',
                 ], 422);
             }
-            
+
             $productD = json_decode($request->producto, true);
-            
+
             if (json_last_error() !== JSON_ERROR_NONE) {
                 return response()->json([
                     'message' => 'El JSON enviado en producto no es válido',
                     'error' => json_last_error_msg(),
                 ], 422);
             }
-           
+
             $validator = Validator::make($productD, [
                 'nombre' => 'required|string|max:80|unique:productos,nombre,'.$id,
                 'descripcion' => 'required|string|max:200',
@@ -193,7 +194,7 @@ class ProductoController extends Controller
                     'error' => $validator->errors(),
                 ], 422);
             }
-            
+
             DB::beginTransaction();
             // transformamos datos al formato de base de datos
             $data = [
@@ -206,9 +207,9 @@ class ProductoController extends Controller
                 'categoria_id' => $productD['categoria']['id'],
                 'activo' => $productD['activo'],
             ];
-            
+
             $producto->update($data);
-            
+
             if ($request->hasFile('imagenes')) {
                 // eliminamos fisicamente las imagenes anteriores
                 foreach ($producto->imagenes as $img) {
@@ -216,10 +217,10 @@ class ProductoController extends Controller
                     if (file_exists($ruta)) {
                         unlink($ruta); // borramos el archivo físico
                     }
-                    
+
                     $img->delete();
                 }
-                
+
                 foreach ($request->file('imagenes') as $file) {
                     // cambiamos el nombre de la imagen
                     $nombreImagen = time().'_'.$file->getClientOriginalName();
@@ -230,14 +231,14 @@ class ProductoController extends Controller
                     }
 
                     $file->move($rutaDestino, $nombreImagen);
-                    
+
                     Imagen::create([
                         'nombre' => $nombreImagen,
                         'producto_id' => $producto->id,
                     ]);
                 }
             }
-            
+
             DB::commit();
 
             return response()->json([
@@ -264,12 +265,12 @@ class ProductoController extends Controller
     public function destroy(string $id)
     {
         try {
-            
+
             $producto = Producto::with('imagenes')->findOrFail($id);
 
             DB::beginTransaction();
 
-            
+
             foreach ($producto->imagenes as $img) {
                 $ruta = public_path('images/productos/'.$img->nombre);
 
@@ -277,7 +278,7 @@ class ProductoController extends Controller
                     unlink($ruta);
                 }
 
-                
+
                 $img->delete();
             }
 
