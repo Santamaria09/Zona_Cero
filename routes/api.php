@@ -16,9 +16,12 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::middleware(['auth:api', 'role:ADMIN'])->group(function () {
-    Route::apiResource('marcas',MarcaController::class);
-    Route::apiResource('categorias',CategoriaController::class);
+Route::middleware('auth:api')->group(function () {
+
+    Route::get('/me', [AuthController::class,'me']);
+    Route::post('/logout', [AuthController::class,'logout']);
+    Route::post('/refresh', [AuthController::class,'refresh']);
+
 });
 
 

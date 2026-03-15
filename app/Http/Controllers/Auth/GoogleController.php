@@ -20,7 +20,16 @@ class GoogleController extends Controller
     public function callback()
     {
 
+       try {
+
         $googleUser = Socialite::driver('google')->stateless()->user();
+
+       }catch (\Exception $e) {
+        return response()->json([
+        'error' => 'Error al autenticar con google'
+        ], 401);
+
+       }
 
         $user = User::updateOrCreate(
             ['email' => $googleUser->getEmail()],
