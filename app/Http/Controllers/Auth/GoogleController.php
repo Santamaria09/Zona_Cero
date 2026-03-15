@@ -22,12 +22,26 @@ class GoogleController extends Controller
 
        try {
 
-        $googleUser = Socialite::driver('google')->stateless()->user();
+            $googleUser = Socialite::driver('google')
+                ->stateless()
+                ->setHttpClient(new \GuzzleHttp\Client([
+                    'verify' => false
+                ]))
+                ->user();
+
+
+              if (!$googleUser->getEmail()) {
+                return response()->json([
+                    'errro' => 'Email no encontrado'
+                ],422);
+            }
 
        }catch (\Exception $e) {
         return response()->json([
-        'error' => 'Error al autenticar con google'
-        ], 401);
+        'message'=> 'Error al autenticar con google',
+        'error' => $e->getMessage()
+
+        ], 500);
 
        }
 
@@ -36,7 +50,7 @@ class GoogleController extends Controller
             [
                 'name' => $googleUser->getName(),
                 'google_id' => $googleUser->getId(),
-                'password' => null
+                'password' => bcrypt(str()->random(16))
             ]
         );
 
