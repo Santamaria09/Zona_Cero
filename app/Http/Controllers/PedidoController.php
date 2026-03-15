@@ -9,7 +9,7 @@ use App\Models\Pedido;
 use App\Models\DetallePedido;
 use App\Models\Producto;
 
-class OrderController extends Controller
+class PedidoController extends Controller
 {
 
     public function index(Request $request)

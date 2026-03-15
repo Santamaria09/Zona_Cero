@@ -16,14 +16,14 @@ class CategoriaController extends Controller
     public function index()
     {
         try {
-        $categorias = Categoria::all(); 
+        $categorias = Categoria::all();
         return response()->json($categorias);
-        
+
         } catch(\Exception $e) {
             return response()->json([
                 'message' => 'Error al obtener las categorias',
                 'error' => $e->getMessage()
-            ], 500); 
+            ], 500);
         }
     }
 
@@ -35,13 +35,14 @@ class CategoriaController extends Controller
          try {
         // validamos a nivel request
         $validated = $request->validate([
-            'nombre' => 'required|string|min:5|max:80|unique:categorias,nombre',
+            'nombre' => 'required|string|min:2|max:80|unique:categorias,nombre',
         ], [
             'nombre.required' => 'El nombre de la categoría es requerido',
             'nombre.string'   => 'El nombre de la categoría debe ser una cadena de texto',
-            'nombre.min'      => 'El nombre de la categoría debe tener al menos 5 caracteres',
+            'nombre.min'      => 'El nombre de la categoría debe tener al menos 2 caracteres',
             'nombre.max'      => 'El nombre de la categoría no debe exceder los 80 caracteres',
-            'nombre.unique'  => 'El nombre de la categoría ya existe'
+            'nombre.unique'  => 'El nombre de la categoría ya existe',
+
         ]);
 
         // insertamos la categoria en la base de datos
@@ -65,14 +66,14 @@ class CategoriaController extends Controller
     public function show(string $id)
     {
         try {
-        $categoria = Categoria::findOrFail($id); 
+        $categoria = Categoria::findOrFail($id);
         return response()->json($categoria);
-        
+
         } catch(\Exception $e) {
             return response()->json([
                 'message' => 'Erro inesperado del servidor',
                 'error' => $e->getMessage()
-            ], 404); 
+            ], 404);
         }
     }
 
@@ -90,7 +91,7 @@ class CategoriaController extends Controller
                     'nombre' => [
                         'required',
                         'string',
-                        'min:5',
+                        'min:2',
                         'max:80',
                         Rule::unique('categorias', 'nombre')->ignore($id)
                     ]
@@ -107,7 +108,7 @@ class CategoriaController extends Controller
             return response()->json([
                 'message' => 'Categoria actualizada correctamente',
                 'categoria' => $categoria
-            ],202);    
+            ],202);
             }catch(\Exception $e){
                 return response()->json([
                     'message' => 'Categoria no encontrada',
@@ -141,6 +142,6 @@ class CategoriaController extends Controller
                     'message' => 'Categoria no encontrada, con el ID = ' .$id
                 ], 404);
             }
-    
+
     }
 }
