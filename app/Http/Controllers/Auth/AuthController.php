@@ -4,6 +4,11 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+use App\Models\User;
 
 class AuthController extends Controller
 {
@@ -23,7 +28,7 @@ class AuthController extends Controller
       return response()->json([
           'access_token' => $token,
           'token_type' => 'bearer',
-          'user' => auth()->user(),
+          'user' => auth()->user()->load('roles'),
           'expires_in' => auth()->factory()->getTTL() * 60
       ]);
      }

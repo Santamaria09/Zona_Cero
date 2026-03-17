@@ -26,9 +26,9 @@ class PedidoController extends Controller
                 $query->where('user_id',$request->user_id);
             }
 
-            $orders = $query->orderBy('fecha','desc')->get();
+            $pedido = $query->orderBy('fecha','desc')->get();
 
-            return response()->json($orders);
+            return response()->json($pedido);
 
         } catch(\Exception $e){
 
@@ -67,9 +67,15 @@ class PedidoController extends Controller
                 'user_id'=>$data['user_id']
             ]);
 
+            $alert = [];
+
             foreach($data['detalles'] as $detalle){
 
                 $producto = Producto::findOrFail($detalle['producto_id']);
+
+                if($producto->stock < $detalle['cantidad']){
+                    throw new \Exception("No se puede proseguir, stock insuficiente del {$producto->nombre}");
+                }
 
                 $subtotal = $producto->precio * $detalle['cantidad'];
 
@@ -83,13 +89,25 @@ class PedidoController extends Controller
 
                 // actualizar stock
                 $producto->decrement('stock',$detalle['cantidad']);
+
+                $stockM = 3;
+                $productActualizado = $producto ->fresh();
+
+                if($productActualizado-> stock <= $stockM){
+                    $alert[] = [
+                        'producto' => $producto->nombre,
+                        'stock_restante' => $productActualizado -> stock,
+                        'message' => 'Stock insuficiente'
+                    ];
+                }
             }
 
             DB::commit();
 
             return response()->json([
                 'message'=>'Pedido creado exitosamente',
-                'pedido'=>$pedido->load('detalles.producto')
+                'pedido'=>$pedido->load('detalles.producto'),
+                'alert_stock' => $alert
             ],200);
 
         } catch(\Exception $e){
@@ -169,7 +187,7 @@ class PedidoController extends Controller
 
             return response()->json([
                 'message'=>"El pedido $pedido->correlativo ha sido actualizado a $nuevoE",
-                'pedido'=>$pedido->load('detalles.producto')
+                'pedido'=>$pedido->load('detalles.producto', 'pagos')
             ]);
 
         } catch(\Exception $e){
