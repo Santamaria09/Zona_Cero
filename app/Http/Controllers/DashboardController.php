@@ -12,10 +12,10 @@ class DashboardController extends Controller
     //función para obtener totales
     public function getControl(){
 
-    $ventasTotales = Pedido::where('estado',['pagada','entregada'])->sum('total');
+    $ventasTotales = Pedido::whereIn('estado',['pagada','entregada'])->sum('total');
         //obtener las ventas de la fecha
         $ventasHoy = Pedido::whereIn('estado',['pagada', 'entregada'])
-        ->whereDate('fecha', Carbon::today())
+        ->whereDate('fecha_pedido', Carbon::today())
         ->sum('total');
 
         $pedidosPagadas = Pedido::where('estado','pagada')->count();
@@ -34,13 +34,13 @@ class DashboardController extends Controller
     public function ventasPorMes(){
         $anioActual = now()->year;
         $ventas = Pedido::select(
-            DB::raw("MONTH(fecha) as numero_mes"),
-            DB::raw("MONTHNAME(fecha) as mes"),
+            DB::raw("MONTH(fecha_pedido) as numero_mes"),
+            DB::raw("MONTHNAME(fecha_pedido) as mes"),
             DB::raw("SUM(total) as total")
         )
         ->whereIn('estado',['pagada','entregada'])
-        ->whereYear('fecha', $anioActual)
-        ->groupBy(DB::raw("MONTH(fecha)"), DB::raw("MONTHNAME(fecha)"))
+        ->whereYear('fecha_pedido', $anioActual)
+        ->groupBy(DB::raw("MONTH(fecha_pedido)"), DB::raw("MONTHNAME(fecha_pedido)"))
         ->orderBy("mes")
         ->get();
         return response()->json($ventas);
@@ -51,11 +51,11 @@ class DashboardController extends Controller
     {
 
         $ventas = Pedido::select(
-                DB::raw("YEAR(fecha) as anio"),
+                DB::raw("YEAR(fecha_pedido) as anio"),
                 DB::raw("SUM(total) as total")
             )
             ->whereIn('estado',['pagada', 'entregada'])
-            ->groupBy(DB::raw("YEAR(fecha)"))
+            ->groupBy(DB::raw("YEAR(fecha_pedido)"))
             ->orderBy("anio")
             ->get();
 

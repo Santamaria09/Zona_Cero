@@ -32,16 +32,16 @@ return [
     ],
 
     'currency' => [
-        'code' => 'eur',
+        'code' => 'usd',
 
         /*
          * Usually cents
          * Used when spelling out the amount and if your currency has decimals.
          *
-         * Example: Amount in words: Eight hundred fifty thousand sixty-eight EUR and fifteen ct.
+         * Example: Amount in words: Eight hundred fifty thousand sixty-eight USD and fifteen ct.
          */
-        'fraction' => 'ct.',
-        'symbol'   => '€',
+        'fraction' => 'cts.',
+        'symbol'   => '$',
 
         /*
          * Example: 19.00

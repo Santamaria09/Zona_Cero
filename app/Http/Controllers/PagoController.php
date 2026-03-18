@@ -39,7 +39,6 @@ class PagoController extends Controller
 
             $pedido = Pedido::with(['user', 'detalles.producto'])->findOrFail($request->pedido_id);
 
-
             $pago = Pago::create([
                 'monto' => $request->monto,
                 'estado' => $request->estado,
@@ -47,54 +46,57 @@ class PagoController extends Controller
                 'pedido_id' => $request->pedido_id,
             ]);
 
-
-            if ($request->estado === 'pagado') {
-                $pedido->update(['estado' => 'pagado']);
+            // Si el pago se completa, actualizamos el estado del pedido a pagada
+            if ($pago->estado === 'pagada') {
+                $pedido->update(['estado' => 'pagada']);
             }
 
+            $facturaUrl = null;
 
-            $customer = new Party([
-                'name' => $pedido->user->name,
-                'custom_fields' => [
-                    'email' => $pedido->user->email,
-                ],
-            ]);
+            if ($pago->estado === 'pagada') {
 
+                $customer = new Party([
+                    'name' => $pedido->user->name,
+                    'custom_fields' => [
+                        'email' => $pedido->user->email,
+                    ],
+                ]);
 
-            $items = [];
+                $items = [];
 
-            foreach ($pedido->detalles ?? [] as $detalle) {
-                $items[] = InvoiceItem::make($detalle->producto->nombre)
-                    ->description($detalle->producto->descripcion ?? '')
-                    ->pricePerUnit($detalle->precio_unitario)
-                    ->quantity($detalle->cantidad);
+                foreach ($pedido->detalles ?? [] as $detalle) {
+                    $items[] = InvoiceItem::make($detalle->producto->nombre)
+                        ->description($detalle->producto->descripcion ?? '')
+                        ->pricePerUnit($detalle->precio_unitario)
+                        ->quantity($detalle->cantidad);
+                }
+
+                // Si no hay detalles, usar monto total
+                if (empty($items)) {
+                    $items[] = InvoiceItem::make('Pedido #' . $pedido->id)
+                        ->pricePerUnit($pago->monto);
+                }
+
+                $filename = 'factura-' . ($pedido->correlativo ?? $pedido->id);
+
+                $invoice = Invoice::make('Factura')
+                    ->serialNumberFormat('FAC-{SEQUENCE}')
+                    ->sequence($pedido->id)
+                    ->buyer($customer)
+                    ->seller('Zona Cero')
+                    ->taxRate(0)
+                    ->discountByPercent(0)
+                    ->addItems($items)
+                    ->filename($filename);
+
+                $path = $invoice->save('public/facturas');
+                $facturaUrl = Storage::url($path);
             }
-
-            // Si no hay detalles, usar monto total
-            if (empty($items)) {
-                $items[] = InvoiceItem::make('Pedido #' . $pedido->id)
-                    ->pricePerUnit($pago->monto);
-            }
-
-
-            $invoice = Invoice::make('Factura')
-                ->serialNumberFormat('FAC-{SEQUENCE}')
-                ->sequence($pedido->id)
-                ->buyer($customer)
-                ->seller('Zona Cero')
-                ->taxRate(0)
-                ->discountByPercent(0)
-                ->addItems($items)
-                ->filename('factura-' . $pedido->correlativo ?? $pedido->id);
-
-
-            $path = $invoice->save('public/facturas');
-            $url = Storage::url($path);
 
             return response()->json([
                 'success' => true,
                 'pago' => $pago,
-                'factura_url' => $url
+                'factura_url' => $facturaUrl
             ]);
 
         } catch (\Exception $e) {
@@ -103,7 +105,7 @@ class PagoController extends Controller
                 'message' => 'Error al procesar pago',
                 'error' => $e->getMessage()
             ], 500);
-        };
+        }
     }
 
       /**

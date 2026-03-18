@@ -26,7 +26,7 @@ class PedidoController extends Controller
                 $query->where('user_id',$request->user_id);
             }
 
-            $pedido = $query->orderBy('fecha','desc')->get();
+            $pedido = $query->orderBy('fecha_pedido','desc')->get();
 
             return response()->json($pedido);
 
@@ -46,7 +46,7 @@ class PedidoController extends Controller
 
             $data = $request->validate([
                 'user_id'=>'required|exists:users,id',
-                'fecha'=>'required|date',
+                'fecha_pedido'=>'required|date',
                 'subtotal'=>'required|numeric|min:0',
                 'impuesto'=>'required|numeric|min:0',
                 'total'=>'required|numeric|min:0',
@@ -57,9 +57,10 @@ class PedidoController extends Controller
 
             DB::beginTransaction();
 
+
             $pedido = Pedido::create([
                 'correlativo'=>$this->generateCorrelativo(),
-                'fecha'=>$data['fecha'],
+                'fecha_pedido'=>$data['fecha_pedido'],
                 'subtotal'=>$data['subtotal'],
                 'impuesto'=>$data['impuesto'],
                 'total'=>$data['total'],
@@ -108,7 +109,7 @@ class PedidoController extends Controller
                 'message'=>'Pedido creado exitosamente',
                 'pedido'=>$pedido->load('detalles.producto'),
                 'alert_stock' => $alert
-            ],200);
+            ],201);
 
         } catch(\Exception $e){
 
@@ -207,14 +208,16 @@ class PedidoController extends Controller
         $year = now()->format('Y');
         $month = now()->format('m');
 
-        $ultimo = Pedido::whereYear('fecha',$year)
-                        ->whereMonth('fecha',$month)
+        // La columna en la tabla es fecha_pedido (no "fecha")
+        $ultimo = Pedido::whereYear('fecha_pedido', $year)
+                        ->whereMonth('fecha_pedido', $month)
                         ->lockForUpdate()
                         ->count();
 
-        $numero = str_pad($ultimo+1,4,'0',STR_PAD_LEFT);
+        $numero = str_pad($ultimo + 1, 4, '0', STR_PAD_LEFT);
 
         return $year.$month.$numero;
 
     }
 }
+

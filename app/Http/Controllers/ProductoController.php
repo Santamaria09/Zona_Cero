@@ -55,6 +55,7 @@ public function index(Request $request)
             if (! $productoData) {
                 return response()->json([
                     'message' => 'El formato del JSON es inválido',
+                    'error'=> 'json_last_error_msg()'
                 ], 422);
             }
             // Normalizar estructura
@@ -88,6 +89,20 @@ public function index(Request $request)
                 ], 422);
             }
 
+            // Validar imágenes si están presentes
+            if ($request->hasFile('imagenes')) {
+                $imageValidator = Validator::make(['imagenes' => $request->file('imagenes')], [
+                    'imagenes' => 'array|max:5',
+                    'imagenes.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+                ]);
+
+                if ($imageValidator->fails()) {
+                    return response()->json([
+                        'message' => 'Errores de validación en imágenes',
+                        'errors' => $imageValidator->errors(),
+                    ], 422);
+                }
+            }
 
             DB::beginTransaction();
 
@@ -193,6 +208,21 @@ public function index(Request $request)
                     'message' => 'Existen errores de validación',
                     'error' => $validator->errors(),
                 ], 422);
+            }
+
+            // Validar imágenes si están presentes
+            if ($request->hasFile('imagenes')) {
+                $imageValidator = Validator::make(['imagenes' => $request->file('imagenes')], [
+                    'imagenes' => 'array|max:5',
+                    'imagenes.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+                ]);
+
+                if ($imageValidator->fails()) {
+                    return response()->json([
+                        'message' => 'Errores de validación en imágenes',
+                        'errors' => $imageValidator->errors(),
+                    ], 422);
+                }
             }
 
             DB::beginTransaction();

@@ -12,7 +12,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('table_pedidos', function (Blueprint $table)  {
+        Schema::table('pedidos', function (Blueprint $table)  {
 
             DB::statement("ALTER TABLE pedidos MODIFY estado ENUM(
                 'pendiente',

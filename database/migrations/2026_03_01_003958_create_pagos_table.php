@@ -14,10 +14,10 @@ return new class extends Migration
         Schema::create('pagos', function (Blueprint $table) {
             $table->id();
             $table->decimal('monto', 10, 2);
-            $table->enum('estado', ['pendiente', 'completado', 'rechazado'])->default('pendiente');
+            $table->enum('estado', ['pendiente', 'pagado', 'rechazado'])->default('pendiente');
             $table->json('respuesta_pasarela')->nullable();
-            $table->unsignedBigInteger('metodo_pagos_id');
-            $table->foreign('metodo_pagos_id')->references('id')->on('metodo_pagos'); 
+            $table->unsignedBigInteger('metodo_pago_id');
+            $table->foreign('metodo_pago_id')->references('id')->on('metodo_pagos');
             $table->unsignedBigInteger('pedido_id');
             $table->foreign('pedido_id')->references('id')->on('pedidos')->cascadeOnDelete();
             $table->timestamps();
