@@ -21,6 +21,11 @@ Route::prefix('auth')->group(function(){
     Route::get('/google', [GoogleController::class, 'redirect']);
     Route::get('/google/callback', [GoogleController::class, 'callback']);
 
+    // Rutas públicas de autenticación
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/google', [AuthController::class, 'loginWithGoogle']);
+
     Route::middleware('auth:api')->group(function(){
         Route::get('me',[AuthController::class, 'me']);
         Route::post('logout',[AuthController::class, 'logout']);
@@ -46,15 +51,27 @@ Route::prefix('admin')->middleware(['auth:api', 'role:ADMIN'])->group(function()
     });
 
 Route::middleware(['auth:api', 'role:CLIENTE'])->group(function () {
-    Route::apiResource('pagos', [PagoController::class, 'store']);
+    Route::post('pagos', [PagoController::class, 'store']);
     Route::post('pedidos', [PedidoController::class, 'store']);
     Route::get('pedidos', [PedidoController::class, 'index']);
     Route::get('pedidos/{id}', [PedidoController::class, 'show']);
+
+    // Rutas aliases en inglés para pedidos
+    Route::post('orders', [PedidoController::class, 'store']);
+    Route::get('orders', [PedidoController::class, 'index']);
+    Route::get('orders/{id}', [PedidoController::class, 'show']);
 });
 
 Route::get('productos', [ProductoController::class, 'index']);
 Route::get('productos/{id}', [ProductoController::class, 'show']);
 
+// Rutas públicas para categorías
+Route::get('categorias', [CategoriaController::class, 'index']);
+Route::get('categorias/{id}', [CategoriaController::class, 'show']);
+
+// Rutas públicas para marcas
+Route::get('marcas', [MarcaController::class, 'index']);
+Route::get('marcas/{id}', [MarcaController::class, 'show']);
 
 
 
